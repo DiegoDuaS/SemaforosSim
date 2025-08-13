@@ -1,141 +1,141 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>  
+#include <omp.h>   
+#include <time.h>   
 
-#define MAX_VEHICULOS 20
+
+#define MAX_VEHICULOS 15000
 #define MAX_COLA 100
+
+// Estados del semáforo
+#define ROJO 0
+#define VERDE 1
+#define AMARILLO 2
 
 typedef struct {
     int id;
-    char tipo[16];
-    int direccion;  // 0=N,1=E,2=S,3=O
+    int direccion;   
 } Vehiculo;
 
 typedef struct {
     int id;
-    int estado;       // 0=rojo, 1=verde, 2=amarillo
-    int tiempo_verde;
-    int tiempo_amarillo;
-    int tiempo_rojo;
+    int estado;       
+    Vehiculo *cola[MAX_COLA];  
+    int num_vehiculos;
 } Semaforo;
 
 typedef struct {
-    Semaforo semaforos[4];
-    Vehiculo *cola[4][MAX_COLA];
-    int frente[4];
-    int fin[4];
+    Semaforo *semaforos; 
+    int num_semaforos;  
 } Interseccion;
 
 void inicializarSemaforos(Interseccion *inter) {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < inter->num_semaforos; i++) {
         inter->semaforos[i].id = i;
-        // Configuración inicial:
-        // Semáforos N y S verdes, E y O rojos
-        if (i == 0 || i == 2) { // N y S
+
+        // Ejemplo: pares en verde, impares en rojo al inicio
+        if (i % 2 == 0) {
             inter->semaforos[i].estado = 1; // verde
         } else {
             inter->semaforos[i].estado = 0; // rojo
         }
-        inter->semaforos[i].tiempo_verde = 3;  
-        inter->semaforos[i].tiempo_rojo = 3;
-         inter->semaforos[i].tiempo_amarillo = 1;
     }
 }
 
 void crearVehiculos(Vehiculo vehiculos[], int num) {
     for (int i = 0; i < num; i++) {
-        vehiculos[i].id = i+1;
-        strcpy(vehiculos[i].tipo, "Auto"); // Por simplicidad
-        vehiculos[i].direccion = i % 4;    // Alterna dirección N,E,S,O
+        vehiculos[i].id = i + 1;       
+        vehiculos[i].direccion = i % 4;
     }
 }
 
-void cambiarEstado(Semaforo *s) {
-    switch(s->estado) {
-        case 0: // Rojo -> Verde
-            s->estado = 1;
-            printf("Semaforo %d cambia a VERDE\n", s->id);
-            sleep(s->tiempo_verde);
-            break;
-        case 1: // Verde -> Amarillo
-            s->estado = 2;
-            printf("Semaforo %d cambia a AMARILLO\n", s->id);
-            sleep(s->tiempo_amarillo);
-            break;
-        case 2: // Amarillo -> Rojo
-            s->estado = 0;
-            printf("Semaforo %d cambia a ROJO\n", s->id);
-            sleep(s->tiempo_rojo);
-            break;
-        default:
-            break;
+void cambiarEstados(Interseccion *inter) {
+    for (int i = 0; i < inter->num_semaforos; i++) {
+        if (inter->semaforos[i].estado == 1) {
+            inter->semaforos[i].estado = 2; // de verde a amarillo
+        } else if (inter->semaforos[i].estado == 2) {
+            inter->semaforos[i].estado = 0; // de amarillo a rojo
+        } else {
+            inter->semaforos[i].estado = 1; // de rojo a verde
+        }
     }
 }
 
-void moverVehiculos(Interseccion *inter) {
-    for (int dir = 0; dir < 4; dir++) {
-        Semaforo *s = &inter->semaforos[dir];
-        if (s->estado == 1) { // semáforo verde
-            if (inter->frente[dir] < inter->fin[dir]) { // hay vehículos esperando
-                Vehiculo *v = inter->cola[dir][inter->frente[dir]];
-                printf("Vehiculo %d (dir %d) avanza porque semaforo %d esta VERDE\n",
-                    v->id, dir, s->id);
-                inter->frente[dir]++;  // vehículo avanza (sale de la cola)
+
+void moverCarros(Semaforo *semaforo) {
+    // Estado 0 = verde, 1 = amarillo, 2 = rojo
+    if (semaforo->estado == 1) { 
+        if (semaforo->num_vehiculos > 0) {
+            printf("Vehiculo %d paso el semaforo %d\n", 
+                   semaforo->cola[0]->id, semaforo->id);
+
+            // Mover la cola
+            for (int i = 1; i < semaforo->num_vehiculos; i++) {
+                semaforo->cola[i - 1] = semaforo->cola[i];
             }
+            semaforo->num_vehiculos--;
         }
     }
 }
 
-
-int quedanVehiculos(Interseccion *inter) {
-    for (int i = 0; i < 4; i++) {
-        if (inter->frente[i] < inter->fin[i]) {
-            return 1; // Aún quedan vehículos
-        }
-    }
-    return 0; // Ya no quedan vehículos
-}
-
-void imprimirEstadoInicial(Vehiculo vehiculos[], int num) {
-    printf("=== ESTADO INICIAL DE LOS VEHICULOS ===\n");
-    for (int i = 0; i < num; i++) {
-        printf("Vehiculo %d -> Direccion: %d\n",
-               vehiculos[i].id, vehiculos[i].direccion);
-    }
-    printf("=======================================\n\n");
-}
 
 int main() {
+    int num_semaforos = 250;
+    int num_vehiculos = 1500;
+    clock_t start, end;
+    double cpu_time;
+
+    // Crear semáforos
     Interseccion inter;
-    Vehiculo vehiculos[MAX_VEHICULOS];
-
-    inicializarSemaforos(&inter);
-    inicializarColas(&inter);
-    crearVehiculos(vehiculos, MAX_VEHICULOS);
-
-    imprimirEstadoInicial(vehiculos, MAX_VEHICULOS);
-
-    for (int i = 0; i < MAX_VEHICULOS; i++) {
-        int dir = vehiculos[i].direccion;
-        inter.cola[dir][inter.fin[dir]] = &vehiculos[i];
-        inter.fin[dir]++;
+    inter.num_semaforos = num_semaforos;
+    inter.semaforos = malloc(sizeof(Semaforo) * num_semaforos);
+    for (int i = 0; i < num_semaforos; i++) {
+        inter.semaforos[i].num_vehiculos = 0;
     }
 
-    int ciclo = 0;
-    while (quedanVehiculos(&inter) && ciclo < 10) { // max 10 ciclos para evitar loops infinitos
-        ciclo++;
-        printf("\n--- Ciclo %d ---\n", ciclo);
+    // Inicializar semáforos
+    inicializarSemaforos(&inter);
 
-        // Cambiar estado de semáforos secuencialmente
-        for (int i = 0; i < 4; i++) {
-            cambiarEstado(&inter.semaforos[i]);
+    // Crear vehículos
+    Vehiculo vehiculos[MAX_VEHICULOS];
+    crearVehiculos(vehiculos, num_vehiculos);
+
+    // Asignar vehículos a los semáforos (cola simple)
+    for (int i = 0; i < num_vehiculos; i++) {
+        int sem_id = i % num_semaforos; // repartir vehículos
+        int idx = inter.semaforos[sem_id].num_vehiculos;
+        inter.semaforos[sem_id].cola[idx] = &vehiculos[i];
+        inter.semaforos[sem_id].num_vehiculos++;
+    }
+
+    start = clock();
+
+    // Simulación de 10 iteraciones
+    for (int iter = 1; iter <= 10; iter++) {
+        printf("\n--- Iteracion %d ---\n", iter);
+
+        for (int i = 0; i < num_semaforos; i++) {
+            moverCarros(&inter.semaforos[i]);
         }
 
-        // Mover vehículos que puedan avanzar
-        moverVehiculos(&inter);
+        cambiarEstados(&inter);
+
+        for (int i = 0; i < num_semaforos; i++) {
+            printf("Semaforo %d estado: %d, vehiculos en cola: %d\n",
+                   inter.semaforos[i].id,
+                   inter.semaforos[i].estado,
+                   inter.semaforos[i].num_vehiculos);
+        }
+ 
     }
 
-    printf("\nSimulación terminada. Todos los vehículos han avanzado o ciclo límite alcanzado.\n");
+    end = clock();
+    cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Tiempo total de simulacion: %.6f segundos\n", cpu_time);
 
+    free(inter.semaforos);
     return 0;
 }
+
