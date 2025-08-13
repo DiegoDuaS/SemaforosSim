@@ -36,20 +36,9 @@ void inicializarSemaforos(Interseccion *inter) {
         } else {
             inter->semaforos[i].estado = 0; // rojo
         }
-        inter->semaforos[i].tiempo_verde = 10;  // segundos (ejemplo)
-        inter->semaforos[i].tiempo_rojo = 10;
-         inter->semaforos[i].tiempo_amarillo = 3;
-    }
-}
-
-void inicializarColas(Interseccion *inter) {
-    for (int i = 0; i < 4; i++) {
-        inter->frente[i] = 0;
-        inter->fin[i] = 0;
-        // Inicializamos todas las posiciones a NULL
-        for (int j = 0; j < MAX_COLA; j++) {
-            inter->cola[i][j] = NULL;
-        }
+        inter->semaforos[i].tiempo_verde = 3;  
+        inter->semaforos[i].tiempo_rojo = 3;
+         inter->semaforos[i].tiempo_amarillo = 1;
     }
 }
 
@@ -107,6 +96,15 @@ int quedanVehiculos(Interseccion *inter) {
     return 0; // Ya no quedan vehículos
 }
 
+void imprimirEstadoInicial(Vehiculo vehiculos[], int num) {
+    printf("=== ESTADO INICIAL DE LOS VEHICULOS ===\n");
+    for (int i = 0; i < num; i++) {
+        printf("Vehiculo %d -> Direccion: %d\n",
+               vehiculos[i].id, vehiculos[i].direccion);
+    }
+    printf("=======================================\n\n");
+}
+
 int main() {
     Interseccion inter;
     Vehiculo vehiculos[MAX_VEHICULOS];
@@ -114,6 +112,8 @@ int main() {
     inicializarSemaforos(&inter);
     inicializarColas(&inter);
     crearVehiculos(vehiculos, MAX_VEHICULOS);
+
+    imprimirEstadoInicial(vehiculos, MAX_VEHICULOS);
 
     for (int i = 0; i < MAX_VEHICULOS; i++) {
         int dir = vehiculos[i].direccion;
