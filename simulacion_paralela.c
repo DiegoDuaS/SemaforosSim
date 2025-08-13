@@ -90,7 +90,7 @@ int main() {
     int num_semaforos = 250;
     int num_vehiculos = 1500;
     omp_set_dynamic(1);
-    omp_set_num_threads(num_semaforos/2);
+    omp_set_num_threads(12);
 
     Interseccion inter;
     inter.num_semaforos = num_semaforos;
